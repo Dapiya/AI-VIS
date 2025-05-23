@@ -24,6 +24,22 @@ class SCENE2DATA:
         self.lon = lon
         self.lat = lat
     
+    @staticmethod
+    def _get_indices(georange, lat, lon):
+        latmin, latmax, lonmin, lonmax = georange
+        barr = (
+                (lat > latmin - 0.5)
+                & (lat < latmax + 0.5)
+                & (lon > lonmin - 0.5)
+                & (lon < lonmax + 0.5)
+        )
+        barrind = da.where(barr)
+        barrind_y = barrind[0].compute()
+        barrind_x = barrind[1].compute()
+        yi, yj = np.amin(barrind_y), np.amax(barrind_y)
+        xi, xj = np.amin(barrind_x), np.amax(barrind_x)
+        return (yi, yj, xi, xj)
+
     def _proj_inverse(self, lon, lat, sat_lon, sat_lat, sat_alt):
         """Backproject longitude/latitude into column/line.
 

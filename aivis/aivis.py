@@ -18,7 +18,7 @@ class AI_VIS:
         self.gpu_id = gpu_id
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    def load(self, weight_path='./aivis/weights', upscale=False, half_precision=False, tile=0, tile_pad=10, pre_pad=0):
+    def load(self, weight_path='./aivis/weights', upscale=False, half_precision=False, tile=0, tile_pad=10, pre_pad=0, arch='1.5-large'):
         """Load AI-VIS model, including its module and weights.
 
         Args:
@@ -28,16 +28,27 @@ class AI_VIS:
             tile (int, optional): Crop input images into tiles for saving GPU memory. See `models.realesrgan.RealESRGANer` for more information.
             tile_pad (int, optional): The pad size for each tile, to remove border artifacts.
             pre_pad (int, optional): Pad the input images to avoid border artifacts.
-        """  
+        """    
         self.upscale = upscale
         
         # load AI-VIS model weight and checkpoint
-        from .models.aivis_1_0 import GeneratorUNet
-        self._Gpath = os.path.join(weight_path, 'aivis_1_0.safetensors')
-        self.G = GeneratorUNet().to(self.device)
-        self._ckpt = load_file(self._Gpath)
-        self.G.load_state_dict(self._ckpt)
-        self.G.eval()
+        if arch == '1.5-large':
+            from .models.aivis_1_5_large import GeneratorUNet
+            self._Gpath = os.path.join(weight_path, 'aivis_1_5_large.safetensors')
+            self.G = GeneratorUNet().to(self.device)
+            self._ckpt = load_file(self._Gpath)
+            self.G.load_state_dict(self._ckpt)
+            self.G.eval()
+        elif arch == '1.5-small' or arch == '1.0':
+            from .models.aivis_1_0 import GeneratorUNet # 1.0 and 1.5 small shares the same arch
+            if arch == '1.5-small':
+                self._Gpath = os.path.join(weight_path, 'aivis_1_5_small.safetensors')
+            elif arch == '1.0':
+                self._Gpath = os.path.join(weight_path, 'aivis_1_0.safetensors')
+            self.G = GeneratorUNet().to(self.device)
+            self._ckpt = load_file(self._Gpath)
+            self.G.load_state_dict(self._ckpt)
+            self.G.eval()
             
         self.T = transform.Compose([
             transform.ToTensor(),
@@ -80,6 +91,57 @@ class AI_VIS:
         
         torch.cuda.empty_cache()
         gc.collect()
+        
+    def _build_input_tensor(self, datas, basemap,
+                                sza, az, sat_za, sat_az):
+            bt08, bt09, bt10, bt11, bt13, bt15, bt16 = datas
+
+            bt13_08 = bt13 - bt08
+            bt13_09 = bt13 - bt09
+            bt13_10 = bt13 - bt10
+            bt11_15 = bt11 - bt15
+            bt13_15 = bt13 - bt15
+            bt13_16 = bt13 - bt16
+
+            bt13_10 = 1 - np.clip(bt13_10 + 12, 0, 74) / 74
+            bt11_15 = 1 - np.clip(bt11_15 + 12, 0, 34) / 34
+            bt13_16 = 1 - np.clip(bt13_16 + 3, 0, 44) / 44
+            bt13_08 = 1 - np.clip(bt13_08 + 11, 0, 91) / 91
+            bt13_09 = 1 - np.clip(bt13_09 + 10, 0, 80) / 80
+            bt13_15 = 1 - np.clip(bt13_15 + 3, 0, 25) / 25
+            bt13     = 1 - np.clip(bt13 + 103, 0, 148) / 148
+            basemap  = basemap / 255.0
+
+            # two white borders (reuse same shapes as original routine)
+            side1 = np.ones([6, 500, 3])
+            side2 = np.ones([512, 6, 3])
+
+            sza_c    = np.full((500, 500), 1 - np.clip(sza,   0, 90) / 90)
+            az_c     = np.full((500, 500), (np.clip(az,     -180, 180) + 180) / 360)
+            sat_az_c = np.full((500, 500),  np.clip(sat_az,   0, 360) / 360)
+            sat_za_c = np.full((500, 500),  np.clip(sat_za,   0, 90)  / 90)
+
+            def _blk(rgb):
+                x = np.concatenate([side1, rgb, side1], axis=0)
+                x = np.concatenate([side2, x, side2], axis=1)
+                return np.uint8(np.clip(x * 255, 0, 255))
+
+            img = torch.cat([
+                self.T(_blk(np.dstack([bt13,     bt13_15, az_c]))),
+                self.T(_blk(np.dstack([bt13_10,  bt11_15, bt13_16]))),
+                self.T(_blk(np.dstack([bt13_08,  bt13_09, sza_c]))),
+                self.T(_blk(np.dstack([sat_az_c, sat_za_c, basemap])))
+            ], dim=0)                                   # → [12,512,512]
+
+            return img
+        
+    def _forward_batch(self, batch_tensors):
+        imgs = torch.stack(batch_tensors).to(self.device)  # [B,12,512,512]
+        with torch.no_grad():
+            outs = self.T_inverse(self.G(imgs))
+            outs = outs.permute(0, 2, 3, 1).cpu().numpy()  # [B,512,512,3]
+            outs = outs[:, 6:-6, 6:-6, 0]                  # trim borders
+        return outs
     
     def data_upscale(self, lons, lats, data):
         """Make a super-resolution to AI-VIS output data, and interpolate longitude and latitude to the same size.
@@ -102,95 +164,58 @@ class AI_VIS:
         
         return lons, lats, data
     
-    def data_to_aivis(self, lons, lats, datas, basemap, sza, az, sat_za, sat_az):
-        """Use AI-VIS model that inputs Infrared data to simulate visible (BAND 3).
-        For input data, usually uses 'B08', 'B09', 'B10', 'B11', 'B13', 'B15', 'B16' on HIM-8/9 in extract order.
-
-        Args:
-            lons (np.ndarray): Input longitude data. Will use if need upscaling.
-            lats (np.ndarray): Input latitude data. Will use if need upscaling.
-            datas (np.ndarray): Input infrared data to AI-VIS model.
-            basemap (np.ndarray): Input basemap to AI-VIS model.
-            sza (float): Input sun zenith angle to AI-VIS model.
-            az (float): Input sun azimuth angle to AI-VIS model.
-            sat_za (float): Input satellite zenith angle to AI-VIS model.
-            sat_az (float): Input satellite azimuth angle to AI-VIS model.
-        
+    def data_to_aivis(self, tile_iter, batch_size: int = 1, upscale: bool = False):
         """
-        if not lons.shape == lats.shape == (500, 500):
-            raise ValueError("Size of lon/lat array must be (500, 500)")
-        
-        if not datas.shape == (7, 500, 500):
-            raise ValueError("Size of data must be (7, 500, 500)")
-        
-        if sza is None or az is None:
-            raise ValueError("`data_to_aivis` function must give `sza` and `az` a float")
-        
-        if sat_za is None or sat_az is None:
-            raise ValueError("`data_to_aivis` function must give `sat_za` and `sat_az` a float")
-        
-        # extract data in the exact order
-        bt08, bt09, bt10, bt11, bt13, bt15, bt16 = datas
-        
-        # process data
-        bt13_08 = bt13 - bt08
-        bt13_09 = bt13 - bt09
-        bt13_10 = bt13 - bt10
-        bt11_15 = bt11 - bt15
-        bt13_15 = bt13 - bt15
-        bt13_16 = bt13 - bt16
-        
-        bt13_10 = 1 - np.clip(bt13_10 + 12, 0, 74) / 74
-        bt11_15 = 1 - np.clip(bt11_15 + 12, 0, 34) / 34
-        bt13_16 = 1 - np.clip(bt13_16 + 3, 0, 44) / 44
-        bt13_08 = 1 - np.clip(bt13_08 + 11, 0, 91) / 91
-        bt13_09 = 1 - np.clip(bt13_09 + 10, 0, 80) / 80
-        bt13_15 = 1 - np.clip(bt13_15 + 3, 0, 25) / 25
-        bt13 = 1 - np.clip(bt13 + 103, 0, 148) / 148
-        basemap = basemap / 255
-        
-        side1 = np.ones([6, 500, 3])
-        side2 = np.ones([512, 6, 3])
-        
-        sza_color = np.zeros([500, 500]) + 1 - np.clip(sza, 0, 90) / 90
-        az_color = np.zeros([500, 500]) + (np.clip(az, -180, 180) + 180) / 360
-        
-        sat_az_color = np.zeros([500, 500]) + np.clip(sat_az, 0, 360) / 360
-        sat_za_color = np.zeros([500, 500]) + np.clip(sat_za, 0, 90) / 90
-        
-        Band13_15_az = np.stack([bt13, bt13_15, az_color], axis=2)
-        Band13_15_az = np.concatenate([side1, Band13_15_az, side1], axis=0)
-        Band13_15_az = np.concatenate([side2, Band13_15_az, side2], axis=1)
-        Band13_15_az = np.uint8(np.clip(Band13_15_az * 255, 0., 255.))
-        
-        Band10_11_16 = np.stack([bt13_10, bt11_15, bt13_16], axis=2)
-        Band10_11_16 = np.concatenate([side1, Band10_11_16, side1], axis=0)
-        Band10_11_16 = np.concatenate([side2, Band10_11_16, side2], axis=1)
-        Band10_11_16 = np.uint8(np.clip(Band10_11_16 * 255, 0., 255.))
-        
-        Band08_09_sza = np.stack([bt13_08, bt13_09, sza_color], axis=2)
-        Band08_09_sza = np.concatenate([side1, Band08_09_sza, side1], axis=0)
-        Band08_09_sza = np.concatenate([side2, Band08_09_sza, side2], axis=1)
-        Band08_09_sza = np.uint8(np.clip(Band08_09_sza * 255, 0., 255.))
-        
-        Band_sataz_satza_map = np.stack([sat_az_color, sat_za_color, basemap], axis=2)
-        Band_sataz_satza_map = np.concatenate([side1, Band_sataz_satza_map, side1], axis=0)
-        Band_sataz_satza_map = np.concatenate([side2, Band_sataz_satza_map, side2], axis=1)
-        Band_sataz_satza_map = np.uint8(np.clip(Band_sataz_satza_map * 255, 0., 255.))
-        
-        # transform numpy array to torch tensor
-        img = torch.cat([self.T(Band13_15_az), self.T(Band10_11_16), self.T(Band08_09_sza), self.T(Band_sataz_satza_map)], dim=0)
-        img = img[None].to(self.device)
-        
-        with torch.no_grad():
-            out = self.T_inverse(self.G(img)[0])
-            out = out.detach().permute(1, 2, 0).cpu().numpy()
-            out = out[6:-6, 6:-6, 0] # delete the white-side
-        
-        if self.upscale:
-            lons, lats, out = self.data_upscale(lons, lats, out)
-        
-        torch.cuda.empty_cache()
+        Convert one or many tiles to AI-VIS grayscale outputs.
+
+        Parameters
+        ----------
+        tile_iter : Iterable[tuple]
+            Each element must be a tuple of **exactly**:
+              (lons, lats, datas, basemap, sza, az, sat_za, sat_az)
+        batch_size : int, default 8
+            Maximum number of tiles forwarded together in a single CUDA call.
+        upscale : bool, default False
+            If True, run Real-ESRGAN ×4 on each tile after inference.
+
+        Returns
+        -------
+        List[Tuple[np.ndarray, np.ndarray, np.ndarray]]
+            A list with the same ordering as `tile_iter`, where each element
+            is ``(lons, lats, aivis_gray)``.
+        """
+
+        tiles = list(tile_iter)
+        if not tiles:
+            return []
+
+        outputs: list[tuple] = []
+
+        # Chunk → build tensors → forward → post-process
+        for start in range(0, len(tiles), batch_size):
+            chunk = tiles[start : start + batch_size]
+
+            batch_tensors = []
+            metas = []                 # (lon, lat) pairs kept in same order
+            for (lon, lat, datas, bmap,
+                 sza, az, sat_za, sat_az) in chunk:
+
+                batch_tensors.append(
+                    self._build_input_tensor(datas, bmap,
+                                             sza, az, sat_za, sat_az)
+                )
+                metas.append((lon, lat))
+
+            # UNet forward
+            outs = self._forward_batch(batch_tensors)
+
+            for (lon_, lat_), out in zip(metas, outs):
+                outputs.append((lon_, lat_, out))
+
+            # free GPU memory for long scenes
+            del batch_tensors, outs
+            torch.cuda.empty_cache()
+
         gc.collect()
-        
-        return lons, lats, out
+        return outputs
+
