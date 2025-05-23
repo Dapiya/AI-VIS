@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""
-profile_aivis.py – Run AI-VIS FLDK inference and emit a per-stage timing report.
-
-‣ Hot sections profiled
-   ├─ sun/sat geometry    (SCENE2DATA.get_msg_from_satpy)
-   ├─ prep tensor         (AI_VIS._build_input_tensor)
-   ├─ UNet forward        (AI_VIS._forward_batch)
-   └─ feather merge       (merge_blocks)
-
-Usage:
-    python profile_aivis.py [--data ./aivis/test_data/FLDK/HIMAWARI] [--pad 20]
-"""
+# AI-VIS test module
 
 import argparse
 import datetime
