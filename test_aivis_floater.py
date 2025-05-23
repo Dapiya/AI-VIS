@@ -131,7 +131,7 @@ def run_aivis_floater(files, lonc, latc, lonr, latr, upscale=True, center=True, 
         if np.all(np.isnan(datas)):
             out = np.zeros((500, 500))
         else:
-            sza, az, sat_za, sat_az = scn2data.get_msg_from_satpy(_lons, _lats, sat_lon, sat_lat, sat_alt, utc_time)
+            sza, az, sat_za, sat_az = utils.get_msg_from_satpy(_lons, _lats, sat_lon, sat_lat, sat_alt, utc_time)
             batch_out = ai_vis.data_to_aivis([(_lons, _lats, datas, bmap, sza, az, sat_za, sat_az)], batch_size=1, upscale=upscale)
             lons_out, lats_out, out = batch_out[0]
         aivis_list.append(out)

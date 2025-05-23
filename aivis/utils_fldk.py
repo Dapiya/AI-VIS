@@ -3,8 +3,7 @@ import warnings
 import gc
 import numpy as np
 from satpy.scene import Scene
-from .astronomy import get_observer_look, get_alt_az
-from scipy.interpolate import RectBivariateSpline
+from .utils import _proj_inverse_basemap, get_msg_from_satpy
 
 class InvalidAreaError(Exception):
     pass
@@ -12,12 +11,6 @@ class InvalidAreaError(Exception):
 class SCENE2DATA:
     def __init__(self, sat="Himawari8"):
         """Init AI-VIS utils module.
-
-        Args:
-            crop_with_lonlat (bool, optional): Whether to crop data with given longitude and latitude.
-            flip_lon (bool, optional): Whether to flip longitude data. If yes, will add 360 for longitude that lower than 0, or minus 360 that greater than 180.
-            lon (float, optional): Center longitude to crop data.
-            lat (float, optional): Center latitude to crop data.
         """
         self.sat = sat
 
@@ -63,29 +56,6 @@ class SCENE2DATA:
         line = LOFF + y * SCLUNIT * LFAC
         return column, line
 
-    def _proj_inverse_basemap(self, map_shape, lons, lats):
-        """Backproject longitude/latitude into column/row to crop basemap.
-
-        Args:
-            map_shape (Tuple(int)): shape of map.
-            lons (np.ndarray): Input longitude data to crop.
-            lats (np.ndarray): Input latitude data to crop.
-        """
-        row, col = map_shape
-        max_lat, max_lon = 180, 360
-
-        _lons, _lats = lons.copy(), lats.copy()
-        _lons[_lons<0] += 360
-        _lats[:] += 90
-
-        rows = row * (1 - _lats / max_lat)
-        cols = col * (_lons / max_lon)
-
-        rows[(np.isnan(rows)) | (np.isinf(rows))] = 0
-        cols[(np.isnan(cols)) | (np.isinf(cols))] = 0
-
-        return cols.astype(int), rows.astype(int)
-
     def get_area_bound(self, latmin, latmax, lonmin, lonmax):
         # Left edge: (latmin, lonmin) -> (latmax, lonmin)
         buffer = 3
@@ -127,7 +97,7 @@ class SCENE2DATA:
             with np.load(path_map) as npLoad:
                 basemap = npLoad['basemap']
                 map_shape = basemap.shape
-            cols, rows = self._proj_inverse_basemap(map_shape, lons, lats)
+            cols, rows = _proj_inverse_basemap(map_shape, lons, lats)
             basemap = basemap[rows, cols]
         except BaseException:
             basemap = np.zeros((500, 500))
@@ -181,27 +151,3 @@ class SCENE2DATA:
 
         return lons, lats, datas, basemap, utc_time, sat_lon, sat_lat, sat_alt
 
-    def get_msg_from_satpy(self, lon, lat, sat_lon, sat_lat, sat_alt, utc_time):
-        # calculate `sza` and `az`
-        salt, saz = get_alt_az(utc_time, lon, lat)
-        sza = 90 - np.absolute(salt * 180 / np.pi)
-        az = saz * 180 / np.pi
-
-        # calculate `sat_az` and `sat_za`
-        sat_az, sat_el = get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, 0)
-        sat_za = 90 - sat_el
-
-        return sza, az, sat_za, sat_az
-
-def interp(*fields, dx=1/4, dy=1/4):
-    ny, nx = fields[0].shape
-    x = np.arange(nx)
-    y = np.arange(ny)
-    newx = np.arange(0, nx, dx)
-    newy = np.arange(0, ny,dy)
-    out = []
-    for idx, arr in enumerate(fields):
-        spline = RectBivariateSpline(y, x, arr)
-        interp = spline(newy, newx)
-        out.append(interp)
-    return out[0] if len(out) == 1 else tuple(out)
