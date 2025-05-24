@@ -138,7 +138,7 @@ SAT_READER_HIM  = 'ahi_hsd'
 
 
 def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=False, map_path="./aivis/basemap/himawari8.npz"):
-    scn2data = utils.SCENE2DATA(crop_with_lonlat=False, flip_lon=True, lon=None, lat=None)
+    scn2data = utils.SCENE2DATA()
     lons, lats, datas, basemap, utc, sat_lon, sat_lat, sat_alt = scn2data.get_datas_from_satpy(
         map_path, files, SAT_READER_HIM, AIVIS_BANDS_HIM)
 
@@ -223,10 +223,10 @@ def parse_args():
     p.add_argument("--data", type=str, default="./aivis/test_data/FLDK/HIMAWARI",
                    help="glob path to Himawari HSD files")
     p.add_argument("--model", type=str, default='1.0', choices=['1.0', '1.5-small', '1.5-large'], help="Select the model to use, default is 1.0")
-    p.add_argument("--upscale", action="store_false", help="Use Real-ESRGAN based upscaler model")
+    p.add_argument("--upscale", action="store_true", help="Use Real-ESRGAN based upscaler model")
     p.add_argument("--pad", type=int, default=20, help="feathering pad (pixels)")
     p.add_argument("--batch-size", type=int, default=1, help="batch size for UNet forward")
-    p.add_argument("--half-precision", action="store_false", help="Use half precision model, not recommended")
+    p.add_argument("--half-precision", action="store_true", help="Use half precision model, not recommended")
     p.add_argument("--output-name", type=str, default="aivis_fldk.png", help="output PNG name")
     return p.parse_args()
 

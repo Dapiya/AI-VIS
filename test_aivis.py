@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--model", type=str, default='1.0', choices=['1.0', '1.5-small', '1.5-large'], help="Select the model to use, default is 1.0")
     parser.add_argument("--upscale", action="store_true", help="Use Real-ESRGAN based upscaler model")
-    parser.add_argument("--half-precision", action="store_false", help="Use half precision model, not recommended")
+    parser.add_argument("--half-precision", action="store_true", help="Use half precision model, not recommended")
 
     args = parser.parse_args()
     
