@@ -14,13 +14,15 @@ Paper: [Simulating Nighttime Visible Satellite Imagery of Tropical Cyclones Usin
 
 ```bibtex
 @ARTICLE{10988561,
-  author  = {Yao, Jinghuai and Du, Puyuan and Zhao, Yucheng and Wang, Yubo},
-  title   = {Simulating Nighttime Visible Satellite Imagery of Tropical Cyclones Using Conditional Generative Adversarial Networks},
-  journal = {IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing},
-  year    = {2025},
-  pages   = {1--18},
-  doi     = {10.1109/JSTARS.2025.3567074}
-}
+  author={Yao, Jinghuai and Du, Puyuan and Zhao, Yucheng and Wang, Yubo},
+  journal={IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing}, 
+  title={Simulating Nighttime Visible Satellite Imagery of Tropical Cyclones Using Conditional Generative Adversarial Networks}, 
+  year={2025},
+  volume={18},
+  number={},
+  pages={12616-12633},
+  keywords={Clouds;Monitoring;Cloud computing;Data models;Tropical cyclones;Spatial resolution;Satellites;Satellite broadcasting;Loss measurement;Earth;Advanced Himawari imager (AHI);clouds;conditional generative adversarial network (CGAN);deep learning;nighttime;tropical cyclone (TC);visible (VIS)},
+  doi={10.1109/JSTARS.2025.3567074}}
 ```
 
 Dataset: [HuggingFace: Dapiya/aivis-dataset](https://huggingface.co/datasets/Dapiya/aivis-dataset)
