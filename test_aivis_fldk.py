@@ -88,7 +88,7 @@ def crop_data(lonlat, datas, basemap, *, pad=0):
     return lon_c, lat_c, datas_c, bmap_c, numy, ex_x, ex_y
 
 
-def Feather(data1, data2, *, pad=20, axis=0):
+def feather(data1, data2, *, pad=20, axis=0):
     alpha = np.linspace(0, 1, pad)
     if axis == 1:  # horizontal seam
         alpha = np.tile(alpha, (data1.shape[0], 1))
@@ -110,7 +110,7 @@ def merge_blocks(aivis_list, numy, excess_x, excess_y, pad):
             acc = block
         else:
             seam = block[:, excess_y:] if (i + 1) % numy == 0 else block
-            acc = Feather(acc, seam, pad=pad, axis=1)
+            acc = feather(acc, seam, pad=pad, axis=1)
         if (i + 1) % numy == 0:
             rows.append(acc)
             acc = None
@@ -122,7 +122,7 @@ def merge_blocks(aivis_list, numy, excess_x, excess_y, pad):
             full = row
         else:
             seam = row[excess_x:, :] if i == len(rows) - 1 else row
-            full = Feather(full, seam, pad=pad, axis=0)
+            full = feather(full, seam, pad=pad, axis=0)
     return full
 
 # ───────────────────────────────────────── Profiling ─────────────────────────────────────────── #
@@ -138,7 +138,7 @@ SAT_READER_HIM  = 'ahi_hsd'
 
 
 def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=False, map_path="./aivis/basemap/himawari8.npz"):
-    scn2data = utils.SCENE2DATA(crop_with_lonlat=False, flip_lon=True, lon=None, lat=None)
+    scn2data = utils.SCENE2DATA()
     lons, lats, datas, basemap, utc, sat_lon, sat_lat, sat_alt = scn2data.get_datas_from_satpy(
         map_path, files, SAT_READER_HIM, AIVIS_BANDS_HIM)
 
@@ -154,7 +154,7 @@ def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=Fal
 
     aivis_tiles = [None] * len(lon_c)
     batch_counter = 0
-    
+
     tile_buf, pos_buf = [], []
     def _flush():
         """Forward the buffered tiles (if any) through the UNet."""
@@ -166,7 +166,7 @@ def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=Fal
             aivis_tiles[pos] = out
         tile_buf.clear()
         pos_buf.clear()
-        
+
     for idx, (lons_i, lats_i, bmap_i, bt8, bt9, bt10, bt11, bt13, bt15, bt16) in enumerate(
             zip(lon_c, lat_c, bmap_c, bt08_c, bt09_c, bt10_c, bt11_c, bt13_c, bt15_c, bt16_c)):
 
@@ -176,9 +176,9 @@ def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=Fal
             continue
 
         # solar/sat geometry
-        sza, az, sat_za, sat_az = scn2data.get_msg_from_satpy(
+        sza, az, sat_za, sat_az = utils.get_msg_from_satpy(
             lons_i, lats_i, sat_lon, sat_lat, sat_alt, utc)
-        
+
         tile_buf.append((lons_i, lats_i, datas_i, bmap_i,
                          sza, az, sat_za, sat_az))
         pos_buf.append(idx)
@@ -187,7 +187,7 @@ def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=Fal
         if len(tile_buf) == batch_size:
             _flush()
 
-    _flush() 
+    _flush()
 
     ai.release()
     mosaic = merge_blocks(aivis_tiles, numy, ex_x, ex_y, pad)
@@ -214,7 +214,7 @@ def print_report():
     for _, line in sorted(lines, reverse=True):
         print(line)
     print("──────────────────────\n")
-    
+
 """
 
 
@@ -223,10 +223,10 @@ def parse_args():
     p.add_argument("--data", type=str, default="./aivis/test_data/FLDK/HIMAWARI",
                    help="glob path to Himawari HSD files")
     p.add_argument("--model", type=str, default='1.0', choices=['1.0', '1.5-small', '1.5-large'], help="Select the model to use, default is 1.0")
-    p.add_argument("--upscale", action="store_false", help="Use Real-ESRGAN based upscaler model")
+    p.add_argument("--upscale", action="store_true", help="Use Real-ESRGAN based upscaler model")
     p.add_argument("--pad", type=int, default=20, help="feathering pad (pixels)")
     p.add_argument("--batch-size", type=int, default=1, help="batch size for UNet forward")
-    p.add_argument("--half-precision", action="store_false", help="Use half precision model, not recommended")
+    p.add_argument("--half-precision", action="store_true", help="Use half precision model, not recommended")
     p.add_argument("--output-name", type=str, default="aivis_fldk.png", help="output PNG name")
     return p.parse_args()
 
