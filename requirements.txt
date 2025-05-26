@@ -3,7 +3,7 @@ Cartopy>=0.22.0
 dask>=2023.8.0
 geopy>=2.4.1
 matplotlib>=3.5.3
-numpy>=1.25.2
+numpy>=1.25.2,<=1.26.4
 opencv-python>=4.9.0.80
 pyproj==3.6.0
 satpy>=0.46.0
@@ -12,3 +12,4 @@ scikit-image>=0.22.0
 torch>=2.1.0
 torchaudio>=2.1.0
 torchvision>=0.16.0
+safetensors
