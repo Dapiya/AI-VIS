@@ -4,11 +4,10 @@ AI-VIS is a Conditional GAN(CGAN) based model that simulates visible imagery fro
 
 The model is trained on Himawari-8/9 Full Disk and Target Area data. The model has been tested on other modern satellites including GOES-R series and GK-2A. Support is expected in the future.
 
-`test_aivis.py` is a demo script for Himawari-8/9 target area data. 
+AI-VIS 1.0 is the model presented in the paper. Since then, we have continued to improve the model, primarily by introducing LPIPS loss, as well as increasing the number of filters of the U-Net. AI-VIS 1.0 is available to everyone on HuggingFace. If you're interested in our most advanced model, please fill out the request form(see table below) to get access.
 
-`test_aivis_fldk.py` is for full disk data.
+Earlier iterations of AI-VIS is trained with much less data, and a different set of inputs. It takes a significant amount of extra code to support it, with little real-world use at this stage, this repo does not support versions earlier than 1.0.
 
-`test_aivis_floater.py` does floater imagery
 
 **License: Apache 2.0**
 
@@ -34,6 +33,14 @@ Dataset: [HuggingFace: Dapiya/aivis-dataset](https://huggingface.co/datasets/Dap
 
 Training Code: [GitHub: Dapiya/aivis-training](https://github.com/Dapiya/aivis-training) (Support missing, not guaranteed to work, contact us if you have questions)
 
+# Test Scripts Provided
+
+`test_aivis.py` is a demo script for Himawari-8/9 target area data.
+
+`test_aivis_fldk.py` is for full disk data.
+
+`test_aivis_floater.py` does floater imagery
+
 # Models
 
 | Model Name | Params* | Training Finish Time | Weights |
@@ -48,6 +55,16 @@ If you're unable to access Google Forms, please email wang3399@wisc.edu
 
 *Params are counting the generator only, as only the generator is used during inference, and the discriminator is very small compared to the generator.
 
+# Hardware Requirements
+
+AI-VIS runs on any relatively modern Nvidia GPU with at least 3GB of VRAM. Typical forward pass of a single pass takes <0.1s(0.048s tested on RTX2080 Ti), other components of the pipeline takes significantly longer than running the model itself.
+
+All code in this repo has been tested with RTX 20, 30, and 40 series GPUs
+
+Usage with CPU(may have performance issue) has not been well tested, should work with no or minimum modification.
+
+Usage with AMD GPUs are untested for now, again, should work with no or minimum modification. Tell us your experience if you try it.
+
 # Usage
 
 1. Clone the repository
@@ -56,22 +73,24 @@ If you're unable to access Google Forms, please email wang3399@wisc.edu
 git clone github.com/Dapiya/AI-VIS.git
 ```
 
-2. Install the requirements (python 3.10/11, support for 3.12 is not guaranteed)
+2. Install corresponding version of PyTorch from [PyTorch website](https://pytorch.org/)
+
+3. Install the requirements (python 3.10/11, support for 3.12 is not guaranteed)
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Download the weights and place in ./aivis/weights
+4. Download the weights and place in ./aivis/weights
 (see table above for links)
 
-4. (Optional) Download data from [AWS](https://noaa-himawari9.s3.amazonaws.com/index.html#AHI-L1b-Target/) and place in ./aivis/test_data/HIMAWARI
+5. (Optional) Download data from [AWS](https://noaa-himawari9.s3.amazonaws.com/index.html#AHI-L1b-Target/) and place in ./aivis/test_data/HIMAWARI
 
     Channels 8, 9, 10, 11, 13, 15, 16 are needed
 
 Note: The package already includes a sample of data. If you want to test with anything else, replace it with the data you downloaded.
 
-5. Run the inference script
+6. Run the inference script
 
 ```bash
 python test_aivis.py [--upscale] [--half-precision]
@@ -79,7 +98,7 @@ python test_aivis.py [--upscale] [--half-precision]
 
 Note: Upscaler model must be downloaded and placed into ./aivis/weights folder when doing --upscale
 
-**`test_aivis_fldk.py`** and **`test_aivis_floater.py`** are similar to **`test_aivis.py`**, download full disk data instead of target area to use, and use `--help` to see the options.
+**`test_aivis_fldk.py`** and **`test_aivis_floater.py`** are similar to **`test_aivis.py`**, use `--help` to see the options.
 
 # Future Plans
 
