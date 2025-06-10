@@ -137,10 +137,16 @@ AIVIS_BANDS_HIM = ['B08', 'B09', 'B10', 'B11', 'B13', 'B15', 'B16']
 SAT_READER_HIM  = 'ahi_hsd'
 
 
-def run_aivis_fldk(files, *, pad=0,model="1.0", batch_size=1, half_precision=False, map_path="./aivis/basemap/himawari8.npz"):
+def run_aivis_fldk(files, *, pad=0, model="1.0", batch_size=1, half_precision=False,
+                   map_path="./aivis/basemap/himawari8.npz", fake_time: str | None = None):
     scn2data = utils.SCENE2DATA()
     lons, lats, datas, basemap, utc, sat_lon, sat_lat, sat_alt = scn2data.get_datas_from_satpy(
         map_path, files, SAT_READER_HIM, AIVIS_BANDS_HIM)
+
+    if fake_time is not None:
+        t = datetime.datetime.strptime(fake_time, "%H:%M")
+        utc = utc.replace(month=3, day=21, hour=t.hour, minute=t.minute,
+                           second=0, microsecond=0)
 
     cropped = crop_data((lons, lats), datas, basemap, pad=pad)
     lon_c, lat_c, datas_c, bmap_c, numy, ex_x, ex_y = cropped
@@ -228,6 +234,8 @@ def parse_args():
     p.add_argument("--batch-size", type=int, default=1, help="batch size for UNet forward")
     p.add_argument("--half-precision", action="store_true", help="Use half precision model, not recommended")
     p.add_argument("--output-name", type=str, default="aivis_fldk.png", help="output PNG name")
+    p.add_argument("--fake-time", type=str, default=None,
+                   help="Override scene UTC to Mar 21 at the given HH:MM time")
     return p.parse_args()
 
 
@@ -237,7 +245,10 @@ def main():
     if not files:
         sys.exit(f"No input data found under {args.data!r}")
 
-    img = run_aivis_fldk(files, pad=args.pad,model=args.model, batch_size=args.batch_size, half_precision=args.half_precision)
+    img = run_aivis_fldk(files, pad=args.pad, model=args.model,
+                         batch_size=args.batch_size,
+                         half_precision=args.half_precision,
+                         fake_time=args.fake_time)
     plot_aivis(img, out_png=args.output_name)
     # print_report()
 
