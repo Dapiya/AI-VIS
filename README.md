@@ -8,6 +8,8 @@ AI-VIS 1.0 is the model presented in the paper. Since then, we have continued to
 
 Earlier iterations of AI-VIS is trained with much less data, and a different set of inputs. It takes a significant amount of extra code to support it, with little real-world use at this stage, this repo does not support versions earlier than 1.0.
 
+[2025/06/09] We have released a set of test data for anyone who wants to take a look but without the hassle of configuring everything: [Google Drive](https://drive.google.com/drive/folders/1AHVWuQ9z1P_8nujVWygW4YDNl-6iu3Zq?usp=sharing) [Dapiya](https://archive.dapiya.top/Custom/aivis_test_h9/)
+
 
 **License: Apache 2.0**
 
@@ -100,7 +102,9 @@ Note: Upscaler model must be downloaded and placed into ./aivis/weights folder w
 
 **`test_aivis_fldk.py`** and **`test_aivis_floater.py`** are similar to **`test_aivis.py`**, use `--help` to see the options.
 
+`test_aivis_fldk.py` has a `--fake-time` option that sets the time of the fldk to the specified time in UTC on Mar 21(equinox), note that if the time entered produces nighttime in certain parts of the full disk, there might be unexpected results(but not a corrupted image). This option is purely so that people know this could be done, feel free to change the code to whatever you want to try out.
+
 # Future Plans
 
-- We plan to train a model for GOES-R series first as our current model has been observed to have some level of performance degration on GOES-R series data.
+- We are working on stuff related to cross-satellite calibration to improve the performance of AI-VIS, since it is only trained on Himawari-8 data. Our previous experiments suggested significant degradations. We will roll out a complete set of system along with support for GOES-R series in the future.
 - In the slightly further future, we will begin working on the next generation of AI-VIS, aiming to continue improving the capabilities of the model.
