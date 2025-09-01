@@ -14,7 +14,7 @@ class AI_VIS:
         Args:
             gpu_id (str): Set GPU device to use. If set -1, will disable GPU device enforcely.
             device (str | torch.device | None): Preferred device. One of 'cuda', 'cpu', 'xla'/'tpu',
-                or a torch.device. If None, auto-selects CUDA→CPU or TPU if explicitly requested.
+                or a torch.device. If None, auto-selects CUDA→XLA→CPU.
         """
         # Respect explicit disable by setting CUDA_VISIBLE_DEVICES to -1
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1" if gpu_id is None else gpu_id
@@ -36,8 +36,24 @@ class AI_VIS:
             else:
                 self.device = torch.device(device)
         else:
-            # Auto: prefer CUDA when available; otherwise CPU. TPU requires explicit opt-in above.
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            # Auto: prefer CUDA → XLA (TPU) → CPU
+            if torch.cuda.is_available():
+                self.device = torch.device('cuda')
+            else:
+                try:
+                    import torch_xla.core.xla_model as xm  # type: ignore
+                    # If XLA is available and reports any device, use it
+                    try:
+                        supported = xm.get_xla_supported_devices()
+                    except Exception:
+                        supported = []
+                    if supported:
+                        self.device = xm.xla_device()
+                        self._is_xla = True
+                    else:
+                        self.device = torch.device('cpu')
+                except Exception:
+                    self.device = torch.device('cpu')
     
     def load(self, weight_path='./aivis/weights', upscale=False, half_precision=False, tile=0, tile_pad=10, pre_pad=0, arch='1.5-large'):
         """Load AI-VIS model, including its module and weights.

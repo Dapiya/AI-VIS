@@ -118,10 +118,12 @@ Note: The package already includes a sample of data. If you want to test with an
 6. Run the inference script
 
 ```bash
-python test_aivis.py [--upscale] [--half-precision] [--device cpu|cuda|xla]
+python test_aivis.py [--upscale] [--half-precision] [--device auto|cpu|cuda|xla]
 ```
 
 Note: Upscaler model must be downloaded and placed into ./aivis/weights folder when doing --upscale
+
+Auto device selection prefers CUDA → XLA (TPU) → CPU.
 
 **`test_aivis_fldk.py`** and **`test_aivis_floater.py`** are similar to **`test_aivis.py`**, use `--help` to see the options.
 
