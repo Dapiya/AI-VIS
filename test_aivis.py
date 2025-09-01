@@ -73,6 +73,7 @@ if __name__ == '__main__':
     
     time_model_start = time.time()
     ai_vis = aivis.AI_VIS(gpu_id='0', device=device)
+    print(f"Using device: {ai_vis.device}")
     ai_vis.load(upscale=do_upscale, half_precision=use_half_precision, tile=0, tile_pad=10, pre_pad=10, arch=used_model)
     batch_out = ai_vis.data_to_aivis([(lons, lats, datas, basemap, sza, az, sat_za, sat_az)], batch_size=1, upscale=do_upscale)
     lons, lats, aivis = batch_out[0]
