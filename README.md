@@ -67,6 +67,29 @@ Usage with CPU(may have performance issue) has not been well tested, should work
 
 Usage with AMD GPUs are untested for now, again, should work with no or minimum modification. Tell us your experience if you try it.
 
+## TPU (Google Cloud TPU / PyTorch/XLA)
+
+- Status: Experimental inference support via PyTorch/XLA.
+- Requirements: Install a matching `torch_xla` build for your PyTorch version on a TPU VM or Colab TPU runtime. See the official PyTorch/XLA install docs.
+- Scope: The main AI‑VIS UNet runs on TPU. The optional Real‑ESRGAN upscaler continues to run on CPU/GPU.
+
+Example usage:
+
+```python
+from aivis.aivis import AI_VIS
+
+# Explicitly request TPU/XLA device
+model = AI_VIS(device='xla')  # or 'tpu'
+model.load(weight_path='./aivis/weights', arch='1.5-large')
+
+# ... run inference the same as GPU/CPU ...
+```
+
+Tips for TPU runtimes:
+- Use `XLA_USE_BF16=1` to prefer bfloat16 for speed/VRAM when appropriate.
+- Marking steps is handled automatically during forward; no extra code needed.
+- If you enable `--upscale`, the upscaler will fall back to CPU/GPU; TPU execution for upscaler is not supported.
+
 # Usage
 
 1. Clone the repository
@@ -95,7 +118,7 @@ Note: The package already includes a sample of data. If you want to test with an
 6. Run the inference script
 
 ```bash
-python test_aivis.py [--upscale] [--half-precision]
+python test_aivis.py [--upscale] [--half-precision] [--device cpu|cuda|xla]
 ```
 
 Note: Upscaler model must be downloaded and placed into ./aivis/weights folder when doing --upscale

@@ -31,12 +31,14 @@ if __name__ == '__main__':
     parser.add_argument("--model", type=str, default='1.0', choices=['1.0', '1.5-small', '1.5-large'], help="Select the model to use, default is 1.0")
     parser.add_argument("--upscale", action="store_true", help="Use Real-ESRGAN based upscaler model")
     parser.add_argument("--half-precision", action="store_true", help="Use half precision model, not recommended")
+    parser.add_argument("--device", type=str, default='auto', choices=['auto', 'cpu', 'cuda', 'xla', 'tpu'], help="Device to run the model on")
 
     args = parser.parse_args()
     
     used_model = args.model
     do_upscale = args.upscale
     use_half_precision = args.half_precision
+    device = None if args.device == 'auto' else args.device
     
     import time
     time_start = time.time()
@@ -70,7 +72,7 @@ if __name__ == '__main__':
     print("latmin: ", latmin, "latmax: ", latmax, "lonmin: ", lonmin, "lonmax: ", lonmax)
     
     time_model_start = time.time()
-    ai_vis = aivis.AI_VIS(gpu_id='0')
+    ai_vis = aivis.AI_VIS(gpu_id='0', device=device)
     ai_vis.load(upscale=do_upscale, half_precision=use_half_precision, tile=0, tile_pad=10, pre_pad=10, arch=used_model)
     batch_out = ai_vis.data_to_aivis([(lons, lats, datas, basemap, sza, az, sat_za, sat_az)], batch_size=1, upscale=do_upscale)
     lons, lats, aivis = batch_out[0]

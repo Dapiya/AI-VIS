@@ -8,15 +8,36 @@ import skimage.transform as sktransform
 from safetensors.torch import load_file
 
 class AI_VIS:
-    def __init__(self, gpu_id='0'):
+    def __init__(self, gpu_id='0', device=None):
         """Init AI-VIS module.
 
         Args:
             gpu_id (str): Set GPU device to use. If set -1, will disable GPU device enforcely.
+            device (str | torch.device | None): Preferred device. One of 'cuda', 'cpu', 'xla'/'tpu',
+                or a torch.device. If None, auto-selects CUDA→CPU or TPU if explicitly requested.
         """
+        # Respect explicit disable by setting CUDA_VISIBLE_DEVICES to -1
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1" if gpu_id is None else gpu_id
         self.gpu_id = gpu_id
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        self._is_xla = False
+        if device is not None:
+            # Allow string aliases
+            if isinstance(device, str) and device.lower() in {"xla", "tpu"}:
+                try:
+                    import torch_xla.core.xla_model as xm  # type: ignore
+                except Exception as e:  # pragma: no cover
+                    raise ImportError(
+                        "Requested TPU device but torch_xla is not available. "
+                        "Install a matching torch_xla build for your PyTorch version."
+                    ) from e
+                self.device = xm.xla_device()
+                self._is_xla = True
+            else:
+                self.device = torch.device(device)
+        else:
+            # Auto: prefer CUDA when available; otherwise CPU. TPU requires explicit opt-in above.
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     def load(self, weight_path='./aivis/weights', upscale=False, half_precision=False, tile=0, tile_pad=10, pre_pad=0, arch='1.5-large'):
         """Load AI-VIS model, including its module and weights.
@@ -82,14 +103,19 @@ class AI_VIS:
             )
     
     def release(self):
-        """Release GPU memory / RAM usage.
+        """Release GPU/TPU memory and Python refs.
         """
         del self.G, self._Gpath, self._ckpt, self.T
         
         if self.upscale:
             del self.U, self._Upath, self._Umodel
         
-        torch.cuda.empty_cache()
+        # Clear CUDA cache if available; ignore on CPU/TPU-only builds
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
         gc.collect()
         
     def _build_input_tensor(self, datas, basemap,
@@ -139,6 +165,13 @@ class AI_VIS:
         imgs = torch.stack(batch_tensors).to(self.device)  # [B,12,512,512]
         with torch.no_grad():
             outs = self.T_inverse(self.G(imgs))
+            # For TPU/XLA, explicitly mark execution step before moving tensors
+            if self._is_xla:
+                try:
+                    import torch_xla.core.xla_model as xm  # type: ignore
+                    xm.mark_step()
+                except Exception:
+                    pass
             outs = outs.permute(0, 2, 3, 1).cpu().numpy()  # [B,512,512,3]
             outs = outs[:, 6:-6, 6:-6, 0]                  # trim borders
         return outs
@@ -212,10 +245,13 @@ class AI_VIS:
             for (lon_, lat_), out in zip(metas, outs):
                 outputs.append((lon_, lat_, out))
 
-            # free GPU memory for long scenes
+            # free accelerator memory for long scenes
             del batch_tensors, outs
-            torch.cuda.empty_cache()
+            try:
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
 
         gc.collect()
         return outputs
-
