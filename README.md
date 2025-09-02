@@ -2,6 +2,8 @@
 
 AI-VIS is a Conditional GAN(CGAN) based model that simulates visible imagery from multiple IR channels of geostationary weather satellites at night.
 
+Take a look at our website for graphics! [here](https://ai-vis.dapiya.top/).
+
 The model is trained on Himawari-8/9 Full Disk and Target Area data. The model has been tested on other modern satellites including GOES-R series and GK-2A. Support is expected in the future.
 
 AI-VIS 1.0 is the model presented in the paper. Since then, we have continued to improve the model, primarily by introducing LPIPS loss, as well as increasing the number of filters of the U-Net. AI-VIS 1.0 is available to everyone on HuggingFace. If you're interested in our most advanced model, please fill out the request form(see table below) to get access.
@@ -31,9 +33,13 @@ Paper: [Simulating Nighttime Visible Satellite Imagery of Tropical Cyclones Usin
 ```
 
 Dataset: [HuggingFace: Dapiya/aivis-dataset](https://huggingface.co/datasets/Dapiya/aivis-dataset)
-(Uploading)
+(Not yet uploaded, experiencing problems, contact us if you need it)
 
-Training Code: [GitHub: Dapiya/aivis-training](https://github.com/Dapiya/aivis-training) (Support missing, not guaranteed to work, contact us if you have questions)
+Training Code: [GitHub: Dapiya/aivis-training](https://github.com/Dapiya/aivis-training) (Support missing, works on our end but no documentation at all, contact us if you have questions)
+
+![AI-VIS Example](/src/HS_H09_20231011_0950__aivisSR_2024.12_newSR_-119_047.png)
+
+AI-VIS of Typhoon Bolaven 2023
 
 # Test Scripts Provided
 
@@ -106,5 +112,6 @@ Note: Upscaler model must be downloaded and placed into ./aivis/weights folder w
 
 # Future Plans
 
-- We are working on stuff related to cross-satellite calibration to improve the performance of AI-VIS, since it is only trained on Himawari-8 data. Our previous experiments suggested significant degradations. We will roll out a complete set of system along with support for GOES-R series in the future.
-- In the slightly further future, we will begin working on the next generation of AI-VIS, aiming to continue improving the capabilities of the model.
+[2025/09/02]
+- We are working on inter-satellite correction systems to ensure consistent performance on GOES-R/ABI, a preview is available at [AI-VIS operational page](https://ai-vis.dapiya.top/sat.html/).
+- In the mean time we are continuing to work towards next iterations of AI-VIS, details pending.
