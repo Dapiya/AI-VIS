@@ -78,7 +78,7 @@ class AI_VIS:
             # only use on lon/lat interpolation
             self.interpolate = lambda lonlat: (
                 # x4 upscale from (500, 500) to (2000, 2000)
-                sktransform.rescale(lonlat, 4, order=1)
+                sktransform.rescale(lonlat, 4, order=1, preserve_range=True, anti_aliasing=False)
             )
     
     def release(self):
@@ -185,37 +185,46 @@ class AI_VIS:
             is ``(lons, lats, aivis_gray)``.
         """
 
-        tiles = list(tile_iter)
-        if not tiles:
-            return []
-
         outputs: list[tuple] = []
 
         # Chunk → build tensors → forward → post-process
-        for start in range(0, len(tiles), batch_size):
-            chunk = tiles[start : start + batch_size]
+        buffer: list = []
+        for item in tile_iter:
+            buffer.append(item)
+            if len(buffer) == batch_size:
+                self._process_chunk(buffer, outputs, upscale)
+                buffer.clear()
 
-            batch_tensors = []
-            metas = []                 # (lon, lat) pairs kept in same order
-            for (lon, lat, datas, bmap,
-                 sza, az, sat_za, sat_az) in chunk:
-
-                batch_tensors.append(
-                    self._build_input_tensor(datas, bmap,
-                                             sza, az, sat_za, sat_az)
-                )
-                metas.append((lon, lat))
-
-            # UNet forward
-            outs = self._forward_batch(batch_tensors)
-
-            for (lon_, lat_), out in zip(metas, outs):
-                outputs.append((lon_, lat_, out))
-
-            # free GPU memory for long scenes
-            del batch_tensors, outs
-            torch.cuda.empty_cache()
+        if buffer:
+            self._process_chunk(buffer, outputs, upscale)
 
         gc.collect()
         return outputs
 
+    def _process_chunk(self, chunk, outputs, upscale_flag):
+        """Build tensors, run the generator, and optionally upscale."""
+        batch_tensors = []
+        metas = []  # (lon, lat) pairs kept in same order
+        for (lon, lat, datas, bmap,
+             sza, az, sat_za, sat_az) in chunk:
+            batch_tensors.append(
+                self._build_input_tensor(datas, bmap,
+                                         sza, az, sat_za, sat_az)
+            )
+            metas.append((lon, lat))
+
+        # UNet forward
+        outs = self._forward_batch(batch_tensors)
+
+        needs_upscale = upscale_flag or getattr(self, "upscale", False)
+        if needs_upscale and not getattr(self, "upscale", False):
+            raise RuntimeError("Upscale requested but Real-ESRGAN model was not loaded. Call load(..., upscale=True).")
+
+        for (lon_, lat_), out in zip(metas, outs):
+            if needs_upscale:
+                lon_, lat_, out = self.data_upscale(lon_, lat_, out)
+            outputs.append((lon_, lat_, out))
+
+        # free GPU memory for long scenes
+        del batch_tensors, outs
+        torch.cuda.empty_cache()
