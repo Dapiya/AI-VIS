@@ -203,6 +203,8 @@ class RealESRGANer():
         # img: numpy
         img = img.astype(np.float32)
         # Optimize: use simple comparison instead of np.max
+        # Note: We need actual max value to distinguish 16-bit (0-65535) vs 8-bit (0-255) data
+        # since both could be stored as float32
         max_range = 65535 if img.max() > 256 else 255
         if max_range == 65535:
             print('\tInput is a 16-bit image')

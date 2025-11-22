@@ -7,6 +7,9 @@ import torchvision.transforms as transform
 import skimage.transform as sktransform
 from safetensors.torch import load_file
 
+# Constants
+TILE_SIZE = 500  # Standard tile size for AI-VIS processing
+
 class AI_VIS:
     def __init__(self, gpu_id='0'):
         """Init AI-VIS module.
@@ -32,8 +35,8 @@ class AI_VIS:
         self.upscale = upscale
         
         # Cache border arrays (these are reused for all tiles)
-        self._border_side1 = np.ones([6, 500, 3], dtype=np.uint8) * 255
-        self._border_side2 = np.ones([512, 6, 3], dtype=np.uint8) * 255
+        self._border_side1 = np.ones([6, TILE_SIZE, 3], dtype=np.uint8) * 255
+        self._border_side2 = np.ones([TILE_SIZE + 12, 6, 3], dtype=np.uint8) * 255
         
         # load AI-VIS model weight and checkpoint
         if arch == '1.5-large':
@@ -111,13 +114,14 @@ class AI_VIS:
             basemap = basemap / 255.0
 
             # Create constant arrays with scalar values
-            sza_c    = np.full((500, 500), 1 - np.clip(sza, 0, 90) / 90, dtype=np.float32)
-            az_c     = np.full((500, 500), (np.clip(az, -180, 180) + 180) / 360, dtype=np.float32)
-            sat_az_c = np.full((500, 500), np.clip(sat_az, 0, 360) / 360, dtype=np.float32)
-            sat_za_c = np.full((500, 500), np.clip(sat_za, 0, 90) / 90, dtype=np.float32)
+            sza_c    = np.full((TILE_SIZE, TILE_SIZE), 1 - np.clip(sza, 0, 90) / 90, dtype=np.float32)
+            az_c     = np.full((TILE_SIZE, TILE_SIZE), (np.clip(az, -180, 180) + 180) / 360, dtype=np.float32)
+            sat_az_c = np.full((TILE_SIZE, TILE_SIZE), np.clip(sat_az, 0, 360) / 360, dtype=np.float32)
+            sat_za_c = np.full((TILE_SIZE, TILE_SIZE), np.clip(sat_za, 0, 90) / 90, dtype=np.float32)
 
             def _blk(rgb):
                 # Optimize border addition by working directly with uint8 and using cached borders
+                # Note: clip ensures safety against floating-point precision issues
                 rgb_uint8 = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
                 x = np.concatenate([self._border_side1, rgb_uint8, self._border_side1], axis=0)
                 x = np.concatenate([self._border_side2, x, self._border_side2], axis=1)
@@ -148,8 +152,8 @@ class AI_VIS:
             lats (np.ndarray): Input latitude data to interpolate.
             data (np.ndarray): Input AI-VIS output data to Real-ESRGANx4 model.
         """
-        if not lons.shape == lats.shape == data.shape == (500, 500):
-            raise ValueError("Size must be (500, 500)")
+        if not lons.shape == lats.shape == data.shape == (TILE_SIZE, TILE_SIZE):
+            raise ValueError(f"Size must be ({TILE_SIZE}, {TILE_SIZE})")
         
         lons = self.interpolate(lons)
         lats = self.interpolate(lats)
