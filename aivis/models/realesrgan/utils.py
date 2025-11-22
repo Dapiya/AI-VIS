@@ -202,7 +202,7 @@ class RealESRGANer():
         h_input, w_input = img.shape[0:2]
         # img: numpy
         img = img.astype(np.float32)
-        # Optimize: use simple comparison instead of np.max
+        # Optimize: use array method .max() instead of np.max() function for better performance
         # Note: We need actual max value to distinguish 16-bit (0-65535) vs 8-bit (0-255) data
         # since both could be stored as float32
         max_range = 65535 if img.max() > 256 else 255

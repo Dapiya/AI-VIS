@@ -103,7 +103,9 @@ class AI_VIS:
                                 sza, az, sat_za, sat_az):
             bt08, bt09, bt10, bt11, bt13, bt15, bt16 = datas
 
-            # Compute differences more efficiently
+            # Compute band differences and normalize to [0,1] range
+            # Pattern: 1 - clip((band_diff + offset), min, max) / range
+            # Each band difference has domain-specific constants based on expected temperature ranges
             bt13_08 = 1 - np.clip(bt13 - bt08 + 11, 0, 91) / 91
             bt13_09 = 1 - np.clip(bt13 - bt09 + 10, 0, 80) / 80
             bt13_10 = 1 - np.clip(bt13 - bt10 + 12, 0, 74) / 74
