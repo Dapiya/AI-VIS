@@ -202,11 +202,11 @@ class RealESRGANer():
         h_input, w_input = img.shape[0:2]
         # img: numpy
         img = img.astype(np.float32)
-        if np.max(img) > 256:  # 16-bit image
-            max_range = 65535
+        # Optimize: use simple comparison instead of np.max
+        max_range = 65535 if img.max() > 256 else 255
+        if max_range == 65535:
             print('\tInput is a 16-bit image')
-        else:
-            max_range = 255
+        
         img = img / max_range
         if len(img.shape) == 2:  # gray image
             img_mode = 'L'

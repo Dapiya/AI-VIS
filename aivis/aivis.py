@@ -31,6 +31,10 @@ class AI_VIS:
         """    
         self.upscale = upscale
         
+        # Cache border arrays (these are reused for all tiles)
+        self._border_side1 = np.ones([6, 500, 3], dtype=np.uint8) * 255
+        self._border_side2 = np.ones([512, 6, 3], dtype=np.uint8) * 255
+        
         # load AI-VIS model weight and checkpoint
         if arch == '1.5-large':
             from .models.aivis_1_5_large import GeneratorUNet
@@ -112,15 +116,11 @@ class AI_VIS:
             sat_az_c = np.full((500, 500), np.clip(sat_az, 0, 360) / 360, dtype=np.float32)
             sat_za_c = np.full((500, 500), np.clip(sat_za, 0, 90) / 90, dtype=np.float32)
 
-            # Create borders once (these are reused for all blocks)
-            side1 = np.ones([6, 500, 3], dtype=np.uint8) * 255
-            side2 = np.ones([512, 6, 3], dtype=np.uint8) * 255
-
             def _blk(rgb):
-                # Optimize border addition by working directly with uint8
+                # Optimize border addition by working directly with uint8 and using cached borders
                 rgb_uint8 = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
-                x = np.concatenate([side1, rgb_uint8, side1], axis=0)
-                x = np.concatenate([side2, x, side2], axis=1)
+                x = np.concatenate([self._border_side1, rgb_uint8, self._border_side1], axis=0)
+                x = np.concatenate([self._border_side2, x, self._border_side2], axis=1)
                 return x
 
             img = torch.cat([

@@ -210,11 +210,8 @@ class SCENE2DATA:
             ds (xarray.Dataset): xr.Dataset object transformed from Satpy.scene object.
             channels (List[str]): List of channels to get data.
         """
-        datas = []
-        for channel in channels:
-            data = ds[channel].values
-            datas.append(data - 273.15)
-        datas = np.asarray(datas)
+        # More efficient: use list comprehension and vectorize conversion
+        datas = np.asarray([ds[channel].values - 273.15 for channel in channels])
         return datas
 
     def get_input_from_satpy(self, path_map, files, reader, load_channels, auto_sza_az=False):
