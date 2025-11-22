@@ -96,35 +96,32 @@ class AI_VIS:
                                 sza, az, sat_za, sat_az):
             bt08, bt09, bt10, bt11, bt13, bt15, bt16 = datas
 
-            bt13_08 = bt13 - bt08
-            bt13_09 = bt13 - bt09
-            bt13_10 = bt13 - bt10
-            bt11_15 = bt11 - bt15
-            bt13_15 = bt13 - bt15
-            bt13_16 = bt13 - bt16
+            # Compute differences more efficiently
+            bt13_08 = 1 - np.clip(bt13 - bt08 + 11, 0, 91) / 91
+            bt13_09 = 1 - np.clip(bt13 - bt09 + 10, 0, 80) / 80
+            bt13_10 = 1 - np.clip(bt13 - bt10 + 12, 0, 74) / 74
+            bt11_15 = 1 - np.clip(bt11 - bt15 + 12, 0, 34) / 34
+            bt13_15 = 1 - np.clip(bt13 - bt15 + 3, 0, 25) / 25
+            bt13_16 = 1 - np.clip(bt13 - bt16 + 3, 0, 44) / 44
+            bt13    = 1 - np.clip(bt13 + 103, 0, 148) / 148
+            basemap = basemap / 255.0
 
-            bt13_10 = 1 - np.clip(bt13_10 + 12, 0, 74) / 74
-            bt11_15 = 1 - np.clip(bt11_15 + 12, 0, 34) / 34
-            bt13_16 = 1 - np.clip(bt13_16 + 3, 0, 44) / 44
-            bt13_08 = 1 - np.clip(bt13_08 + 11, 0, 91) / 91
-            bt13_09 = 1 - np.clip(bt13_09 + 10, 0, 80) / 80
-            bt13_15 = 1 - np.clip(bt13_15 + 3, 0, 25) / 25
-            bt13     = 1 - np.clip(bt13 + 103, 0, 148) / 148
-            basemap  = basemap / 255.0
+            # Create constant arrays with scalar values
+            sza_c    = np.full((500, 500), 1 - np.clip(sza, 0, 90) / 90, dtype=np.float32)
+            az_c     = np.full((500, 500), (np.clip(az, -180, 180) + 180) / 360, dtype=np.float32)
+            sat_az_c = np.full((500, 500), np.clip(sat_az, 0, 360) / 360, dtype=np.float32)
+            sat_za_c = np.full((500, 500), np.clip(sat_za, 0, 90) / 90, dtype=np.float32)
 
-            # two white borders (reuse same shapes as original routine)
-            side1 = np.ones([6, 500, 3])
-            side2 = np.ones([512, 6, 3])
-
-            sza_c    = np.full((500, 500), 1 - np.clip(sza,   0, 90) / 90)
-            az_c     = np.full((500, 500), (np.clip(az,     -180, 180) + 180) / 360)
-            sat_az_c = np.full((500, 500),  np.clip(sat_az,   0, 360) / 360)
-            sat_za_c = np.full((500, 500),  np.clip(sat_za,   0, 90)  / 90)
+            # Create borders once (these are reused for all blocks)
+            side1 = np.ones([6, 500, 3], dtype=np.uint8) * 255
+            side2 = np.ones([512, 6, 3], dtype=np.uint8) * 255
 
             def _blk(rgb):
-                x = np.concatenate([side1, rgb, side1], axis=0)
+                # Optimize border addition by working directly with uint8
+                rgb_uint8 = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
+                x = np.concatenate([side1, rgb_uint8, side1], axis=0)
                 x = np.concatenate([side2, x, side2], axis=1)
-                return np.uint8(np.clip(x * 255, 0, 255))
+                return x
 
             img = torch.cat([
                 self.T(_blk(np.dstack([bt13,     bt13_15, az_c]))),
@@ -158,8 +155,9 @@ class AI_VIS:
         lats = self.interpolate(lats)
         
         with torch.no_grad():
-            data = np.stack((data.copy(), data.copy(), data.copy()), axis=2)
-            data, _ = self.U.enhance(data * 255, outscale=4)
+            # More efficient: avoid copy and reuse array
+            data_rgb = np.stack((data, data, data), axis=2) * 255
+            data, _ = self.U.enhance(data_rgb, outscale=4)
             data = data[:, :, 0] / 255
         
         return lons, lats, data

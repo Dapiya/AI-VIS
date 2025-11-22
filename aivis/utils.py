@@ -20,15 +20,16 @@ def _proj_inverse_basemap(map_shape, lons, lats):
     row, col = map_shape
     max_lat, max_lon = 180, 360
 
-    _lons, _lats = lons.copy(), lats.copy()
-    _lons[_lons<0] += 360
-    _lats[:] += 90
+    # Avoid unnecessary copies - work with views where possible
+    _lons = np.where(lons < 0, lons + 360, lons)
+    _lats = lats + 90
 
     rows = row * (1 - _lats / max_lat)
     cols = col * (_lons / max_lon)
 
-    rows[(np.isnan(rows)) | (np.isinf(rows))] = 0
-    cols[(np.isnan(cols)) | (np.isinf(cols))] = 0
+    # Replace NaN/Inf values with 0 in a single operation
+    rows = np.where((np.isnan(rows)) | (np.isinf(rows)), 0, rows)
+    cols = np.where((np.isnan(cols)) | (np.isinf(cols)), 0, cols)
 
     return cols.astype(int), rows.astype(int)
 
@@ -119,17 +120,18 @@ class SCENE2DATA:
            lons.shape[1] == lats.shape[1] == datas.shape[2] < 500:
             raise ValueError("Size of any dimension of 2D-array must equal or larger than 500")
 
-        lons[np.isinf(lons)] = np.nan
-        lats[np.isinf(lats)] = np.nan
+        # Use np.where for more efficient operations
+        lons = np.where(np.isinf(lons), np.nan, lons)
+        lats = np.where(np.isinf(lats), np.nan, lats)
 
         if self.flip_lon:
             if self.lon is not None and self.lon < 0:
                 self.lon += 360
-            lons[lons<0] += 360
+            lons = np.where(lons < 0, lons + 360, lons)
         else:
             if self.lon is not None and self.lon > 180:
                 self.lon -= 360
-            lons[lons>180] -= 360
+            lons = np.where(lons > 180, lons - 360, lons)
 
         if not self.crop_with_lonlat:
             centery, centerx = int(lats.shape[0] / 2), int(lons.shape[1] / 2)

@@ -42,10 +42,8 @@ def get_locs(ref_lonlat, step=500, min_x=0, min_y=0, max_x=5500, max_y=5500):
     excess_y = step - rangey[-1][-1] + rangey[-2][-1]
 
     lon, lat = ref_lonlat
-    real_ranges = []
-    for cx in rangex:
-        for cy in rangey:
-            real_ranges.append((cx, cy))
+    # Optimized: use list comprehension instead of nested loops
+    real_ranges = [(cx, cy) for cx in rangex for cy in rangey]
     lon = np.array([lon[cx[0]:cx[1],cy[0]:cy[1]] for cx, cy in real_ranges])
     lat = np.array([lat[cx[0]:cx[1],cy[0]:cy[1]] for cx, cy in real_ranges])
     print(f'{get_time_string()} [I] real number of blocks: {len(real_ranges)}.')
@@ -83,23 +81,26 @@ def Feather(data1, data2, pad = 20, axis=0):
     return blended_image
 
 def merge_blocks(aivis_list, numy, excess_x, excess_y, pad, upscale_f):
-    aivis = np.array([])
+    # Horizontal merging - optimized to avoid empty array size checks
     outs = []
+    aivis = None
     for i in range(len(aivis_list)):
-        if aivis.size == 0:
+        if aivis is None:
             aivis = aivis_list[i]
         else:
             aivis = Feather(aivis, aivis_list[i][:, excess_y*upscale_f:] if (i + 1) % numy == 0 else aivis_list[i], pad*upscale_f, axis=1)
         if (i + 1) % numy == 0:
             outs.append(aivis)
-            aivis = np.array([])
-    aivis = np.array([]) # set it to avoid bug
+            aivis = None
+    
+    # Vertical merging - optimized to avoid empty array size checks
+    merged = None
     for i in range(len(outs)):
-        if aivis.size == 0:
-            aivis = outs[i]
+        if merged is None:
+            merged = outs[i]
         else:
-            aivis = Feather(aivis, outs[i][excess_x*upscale_f:, :] if i == len(outs)-1 else outs[i], pad*upscale_f, axis=0)
-    return aivis
+            merged = Feather(merged, outs[i][excess_x*upscale_f:, :] if i == len(outs)-1 else outs[i], pad*upscale_f, axis=0)
+    return merged
 
 def run_aivis_floater(files, lonc, latc, lonr, latr, upscale=True, center=True, path_map='./aivis/basemap/himawari8.npz', pad=0, model='1.0'):
     sat = "Himawari8"

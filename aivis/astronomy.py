@@ -158,17 +158,20 @@ def get_observer_look(sat_lon, sat_lat, sat_alt, utc_time, lon, lat, alt):
         utc_time, lon, lat, alt
     )
 
-    lon = np.deg2rad(lon)
-    lat = np.deg2rad(lat)
+    lon_rad = np.deg2rad(lon)
+    lat_rad = np.deg2rad(lat)
 
-    theta = (gmst(utc_time) + lon) % (2 * np.pi)
+    # Compute gmst once and reuse
+    gmst_val = gmst(utc_time)
+    theta = (gmst_val + lon_rad) % (2 * np.pi)
 
     rx = pos_x - opos_x
     ry = pos_y - opos_y
     rz = pos_z - opos_z
 
-    sin_lat = np.sin(lat)
-    cos_lat = np.cos(lat)
+    # Cache trig values to avoid recomputation
+    sin_lat = np.sin(lat_rad)
+    cos_lat = np.cos(lat_rad)
     sin_theta = np.sin(theta)
     cos_theta = np.cos(theta)
 
@@ -200,17 +203,27 @@ def observer_position(time, lon, lat, alt):
     http://celestrak.com/columns/v02n03/
     """
 
-    lon = np.deg2rad(lon)
-    lat = np.deg2rad(lat)
+    lon_rad = np.deg2rad(lon)
+    lat_rad = np.deg2rad(lat)
 
-    theta = (gmst(time) + lon) % (2 * np.pi)
-    c = 1 / np.sqrt(1 + F * (F - 2) * np.sin(lat) ** 2)
+    gmst_val = gmst(time)
+    theta = (gmst_val + lon_rad) % (2 * np.pi)
+    
+    # Cache trig calculations
+    sin_lat = np.sin(lat_rad)
+    cos_lat = np.cos(lat_rad)
+    sin_theta = np.sin(theta)
+    cos_theta = np.cos(theta)
+    
+    # Reuse sin_lat squared
+    sin_lat_sq = sin_lat ** 2
+    c = 1 / np.sqrt(1 + F * (F - 2) * sin_lat_sq)
     sq = c * (1 - F) ** 2
 
-    achcp = (A * c + alt) * np.cos(lat)
-    x = achcp * np.cos(theta)  # kilometers
-    y = achcp * np.sin(theta)
-    z = (A * sq + alt) * np.sin(lat)
+    achcp = (A * c + alt) * cos_lat
+    x = achcp * cos_theta  # kilometers
+    y = achcp * sin_theta
+    z = (A * sq + alt) * sin_lat
 
     vx = -MFACTOR * y  # kilometers/second
     vy = MFACTOR * x
