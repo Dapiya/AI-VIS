@@ -22,8 +22,8 @@ class RealESRGANModel(SRGANModel):
 
     def __init__(self, opt):
         super(RealESRGANModel, self).__init__(opt)
-        self.jpeger = DiffJPEG(differentiable=False).cuda()  # simulate JPEG compression artifacts
-        self.usm_sharpener = USMSharp().cuda()  # do usm sharpening
+        self.jpeger = DiffJPEG(differentiable=False).to(self.device)  # simulate JPEG compression artifacts
+        self.usm_sharpener = USMSharp().to(self.device)  # do usm sharpening
         self.queue_size = opt.get('queue_size', 180)
 
     @torch.no_grad()
@@ -38,14 +38,14 @@ class RealESRGANModel(SRGANModel):
         b, c, h, w = self.lq.size()
         if not hasattr(self, 'queue_lr'):
             assert self.queue_size % b == 0, f'queue size {self.queue_size} should be divisible by batch size {b}'
-            self.queue_lr = torch.zeros(self.queue_size, c, h, w).cuda()
+            self.queue_lr = torch.zeros(self.queue_size, c, h, w, device=self.device)
             _, c, h, w = self.gt.size()
-            self.queue_gt = torch.zeros(self.queue_size, c, h, w).cuda()
+            self.queue_gt = torch.zeros(self.queue_size, c, h, w, device=self.device)
             self.queue_ptr = 0
         if self.queue_ptr == self.queue_size:  # the pool is full
             # do dequeue and enqueue
             # shuffle
-            idx = torch.randperm(self.queue_size)
+            idx = torch.randperm(self.queue_size, device=self.device)
             self.queue_lr = self.queue_lr[idx]
             self.queue_gt = self.queue_gt[idx]
             # get first b samples

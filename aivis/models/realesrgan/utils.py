@@ -8,6 +8,7 @@ import torch
 from basicsr.utils.download_util import load_file_from_url
 from torch.nn import functional as F
 from safetensors.torch import load_file
+from ...torch_utils import get_torch_device
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -46,16 +47,12 @@ class RealESRGANer():
         self.half = half
 
         # initialize model
-        if gpu_id:
-            self.device = torch.device(
-                f'cuda:{gpu_id}' if torch.cuda.is_available() else 'cpu') if device is None else device
-        else:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') if device is None else device
+        self.device = get_torch_device(device=device, gpu_id=gpu_id)
 
         if model is not None:
-            self.model = model.to(self.device)
+            self.model = model
             if isinstance(model_path, str) and model_path.endswith('.safetensors'):
-                loadnet = load_file(model_path, device=str(self.device))
+                loadnet = load_file(model_path, device='cpu')
                 self.model.load_state_dict(loadnet, strict=True)
             elif isinstance(model_path, str) and model_path.endswith('.pth'):
                 loadnet = torch.load(model_path, map_location='cpu')
@@ -70,14 +67,8 @@ class RealESRGANer():
         else:
             raise ValueError("Either a `model` or a `model_path` must be provided.")
 
-        # prefer to use params_ema
-        if 'params_ema' in loadnet:
-            keyname = 'params_ema'
-        else:
-            keyname = 'params'
-
-        model.eval()
-        self.model = model.to(self.device)
+        self.model.eval()
+        self.model = self.model.to(self.device)
         if self.half:
             self.model = self.model.half()
 
