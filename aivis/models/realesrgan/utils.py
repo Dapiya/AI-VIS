@@ -47,7 +47,9 @@ class RealESRGANer():
         self.half = half
 
         # initialize model
-        self.device = get_torch_device(device=device, gpu_id=gpu_id)
+        # Keep default behavior accelerator-first when gpu_id is omitted.
+        resolved_gpu_id = '0' if gpu_id is None else gpu_id
+        self.device = get_torch_device(device=device, gpu_id=resolved_gpu_id)
 
         if model is not None:
             self.model = model
