@@ -6,6 +6,7 @@ import torch
 import torchvision.transforms as transform
 import skimage.transform as sktransform
 from safetensors.torch import load_file
+from .torch_utils import empty_torch_cache, get_torch_device
 
 class AI_VIS:
     def __init__(self, gpu_id='0'):
@@ -16,7 +17,7 @@ class AI_VIS:
         """
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1" if gpu_id is None else gpu_id
         self.gpu_id = gpu_id
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = get_torch_device(gpu_id=gpu_id)
     
     def load(self, weight_path='./aivis/weights', upscale=False, half_precision=False, tile=0, tile_pad=10, pre_pad=0, arch='1.5-large'):
         """Load AI-VIS model, including its module and weights.
@@ -89,7 +90,7 @@ class AI_VIS:
         if self.upscale:
             del self.U, self._Upath, self._Umodel
         
-        torch.cuda.empty_cache()
+        empty_torch_cache(self.device)
         gc.collect()
         
     def _build_input_tensor(self, datas, basemap,
@@ -227,4 +228,4 @@ class AI_VIS:
 
         # free GPU memory for long scenes
         del batch_tensors, outs
-        torch.cuda.empty_cache()
+        empty_torch_cache(self.device)
